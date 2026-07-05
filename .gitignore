@@ -1,3 +1,4 @@
 timer-push-server/node_modules/
 timer-push-server/sessions.json
+timer-push-server/tasks.json
 vapid_keys.txt
