@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>today.sched</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #14171b;
+    --panel: #1c2029;
+    --panel-2: #21252f;
+    --line: #2c313d;
+    --text: #e9e7e0;
+    --muted: #7d8494;
+    --dp: #e8a33d;
+    --os: #45b8ac;
+    --cd: #8b7fd6;
+    --webse: #e17b6b;
+    --io: #565c6b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: radial-gradient(circle at 20% -10%, #1e2330 0%, var(--ink) 55%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height:100vh;
+    padding: 28px 16px 60px;
+    display:flex;
+    justify-content:center;
+  }
+  .frame{
+    width:100%;
+    max-width: 780px;
+  }
+  .titlebar{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px 10px 0 0;
+    padding: 10px 16px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .dot{width:10px;height:10px;border-radius:50%;}
+  .dot.r{background:#e0645a;} .dot.y{background:#e0b95a;} .dot.g{background:#5ac47a;}
+  .titletext{
+    margin-left:8px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12.5px;
+    color: var(--muted);
+  }
+  .screen{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-top:none;
+    border-radius: 0 0 10px 10px;
+    padding: 26px 26px 30px;
+  }
+  .prompt{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--os);
+    margin-bottom: 4px;
+  }
+  .prompt span{color:var(--muted);}
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 26px;
+    font-weight: 700;
+    margin: 2px 0 4px;
+    letter-spacing: -0.02em;
+  }
+  .sub{
+    color: var(--muted);
+    font-size: 13.5px;
+    margin-bottom: 22px;
+  }
+
+  /* stat row */
+  .stats{
+    display:flex;
+    gap: 14px;
+    margin-bottom: 26px;
+    flex-wrap: wrap;
+  }
+  .stat{
+    flex:1;
+    min-width: 130px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .stat .num{
+    font-family:'Space Grotesk', sans-serif;
+    font-size: 24px;
+    font-weight:700;
+  }
+  .stat .lbl{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* gantt */
+  .gantt-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    margin-bottom: 8px;
+  }
+  .gantt{
+    display:flex;
+    width:100%;
+    height: 46px;
+    border-radius: 8px;
+    overflow:hidden;
+    border:1px solid var(--line);
+    margin-bottom: 30px;
+  }
+  .seg{
+    height:100%;
+    border-right: 1px solid var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    position:relative;
+    transition: filter 0.15s ease;
+  }
+  .seg:last-child{border-right:none;}
+  .seg:hover{filter:brightness(1.15);}
+  .seg .pid{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: rgba(0,0,0,0.55);
+    font-weight:600;
+  }
+  .seg.io .pid{ color: rgba(255,255,255,0.5); }
+  .seg.running::after{
+    content:'';
+    position:absolute; inset:0;
+    animation: pulse 1.6s ease-in-out infinite;
+    background: rgba(255,255,255,0.18);
+  }
+  @keyframes pulse{
+    0%,100%{opacity:0;} 50%{opacity:1;}
+  }
+
+  /* queue list */
+  .queue-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    margin: 4px 0 10px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .reset-btn{
+    background:none;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    cursor:pointer;
+  }
+  .reset-btn:hover{ color: var(--text); border-color: var(--muted); }
+
+  .task{
+    display:flex;
+    align-items:center;
+    gap: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--io);
+    border-radius: 8px;
+    padding: 11px 14px;
+    margin-bottom: 8px;
+    cursor:pointer;
+    transition: border-color 0.15s ease, opacity 0.15s ease;
+  }
+  .task.io{ cursor:default; background: transparent; border-style:dashed; opacity:0.75; }
+  .task .pidnum{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size: 13px;
+    color: var(--muted);
+    width: 30px;
+    flex-shrink:0;
+  }
+  .task .info{ flex:1; min-width:0; }
+  .task .name{
+    font-size: 14.5px;
+    font-weight:500;
+  }
+  .task.done .name{ text-decoration: line-through; color: var(--muted); }
+  .task .tag{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+  }
+  .state-badge{
+    font-family:'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 4px 9px;
+    border-radius: 20px;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    flex-shrink:0;
+    border:1px solid transparent;
+  }
+  .state-queued{ color: var(--muted); border-color: var(--line); }
+  .state-running{ color: var(--ink); font-weight:600; }
+  .state-done{ color: var(--muted); background: transparent; border-color: var(--line); }
+  .remove-x{
+    background:none; border:none; color: var(--muted);
+    font-size: 15px; cursor:pointer; padding: 0 2px; flex-shrink:0;
+  }
+  .remove-x:hover{ color: var(--webse); }
+
+  /* add task */
+  .add-row{
+    display:flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .add-row select, .add-row input{
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 7px;
+    padding: 9px 10px;
+    font-family:'Inter', sans-serif;
+    font-size: 13px;
+  }
+  .add-row input{ flex:1; min-width:0; }
+  #newSubject{ flex: 0 0 110px; }
+  .add-row input::placeholder{ color: var(--muted); }
+  .add-row button{
+    background: var(--os);
+    color: var(--ink);
+    border:none;
+    border-radius: 7px;
+    padding: 9px 16px;
+    font-weight:600;
+    font-size: 13px;
+    cursor:pointer;
+  }
+  .add-row button:hover{ filter:brightness(1.08); }
+
+  .legend{
+    display:flex;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-top:22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .legend-item{
+    display:flex; align-items:center; gap:6px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:10.5px;
+    color: var(--muted);
+  }
+  .legend-dot{ width:9px; height:9px; border-radius:2px; }
+
+  footer{
+    text-align:center;
+    color: var(--muted);
+    font-family:'JetBrains Mono', monospace;
+    font-size: 11px;
+    margin-top: 18px;
+  }
+
+  @media (max-width: 480px){
+    .screen{padding:20px 16px 24px;}
+    h1{font-size:22px;}
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="titlebar">
+    <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+    <div class="titletext">today.sched — process_scheduler</div>
+  </div>
+  <div class="screen">
+    <div class="prompt"><span>sitaram@rvce</span>:~$ ./run_day.sh</div>
+    <h1 id="greeting">Loading scheduler…</h1>
+    <div class="sub" id="dateline"></div>
+
+    <div class="stats">
+      <div class="stat"><div class="num" id="statDone">0/0</div><div class="lbl">Bursts complete</div></div>
+      <div class="stat"><div class="num" id="statUtil">0%</div><div class="lbl">CPU utilization</div></div>
+      <div class="stat"><div class="num" id="statRunning">idle</div><div class="lbl">Now running</div></div>
+    </div>
+
+    <div class="gantt-label">Scheduler queue</div>
+    <div class="gantt" id="gantt"></div>
+
+    <div class="queue-label">
+      <span>Process table</span>
+      <button class="reset-btn" id="resetBtn">requeue all</button>
+    </div>
+    <div id="taskList"></div>
+
+    <div class="add-row">
+      <input id="newSubject" list="subjectOptions" placeholder="Subject" autocomplete="off">
+      <datalist id="subjectOptions">
+        <option value="DP"></option>
+        <option value="OS"></option>
+        <option value="CD"></option>
+        <option value="WEBSE"></option>
+      </datalist>
+      <input id="newLabel" type="text" placeholder="Add a process (e.g. Aptitude practice)">
+      <button id="addBtn">Add</button>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--dp)"></div>DP</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--os)"></div>OS</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--cd)"></div>Compiler Design</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--webse)"></div>Web / SE</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--io)"></div>I/O wait</div>
+    </div>
+  </div>
+  <footer>tap a process to cycle QUEUED → RUNNING → DONE · only one process runs at a time</footer>
+</div>
+
+<script>
+const SUBJECT_COLOR = { DP:'var(--dp)', OS:'var(--os)', CD:'var(--cd)', WEBSE:'var(--webse)' };
+const SUBJECT_TEXTCOLOR = { DP:'#3a2a08', OS:'#0a2c28', CD:'#241c4a', WEBSE:'#3a1710' };
+const CUSTOM_PALETTE = ['#c9a86a', '#7ea6c9', '#a6c97e', '#c97ea6', '#9aa0ac'];
+const CUSTOM_TEXT = '#1a1a1a';
+
+function colorFor(subject){
+  const key = (subject || '').trim().toUpperCase();
+  if(SUBJECT_COLOR[key]) return SUBJECT_COLOR[key];
+  // stable hash so the same custom subject always gets the same color
+  let hash = 0;
+  for(let i=0;i<key.length;i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return CUSTOM_PALETTE[hash % CUSTOM_PALETTE.length];
+}
+function textColorFor(subject){
+  const key = (subject || '').trim().toUpperCase();
+  return SUBJECT_TEXTCOLOR[key] || CUSTOM_TEXT;
+}
+
+const DEFAULT_TASKS = [
+  {id:'p1', kind:'task', subject:'DP', label:'DP Revision', state:'queued'},
+  {id:'p2', kind:'task', subject:'DP', label:'DP Problem Solving', state:'queued'},
+  {id:'io1', kind:'io', label:'Breakfast'},
+  {id:'p3', kind:'task', subject:'DP', label:'DP Problem Solving — Session 1', state:'queued'},
+  {id:'p4', kind:'task', subject:'DP', label:'DP Problem Solving — Session 2', state:'queued'},
+  {id:'p5', kind:'task', subject:'OS', label:'OS Session', state:'queued'},
+  {id:'io2', kind:'io', label:'Lunch'},
+  {id:'p6', kind:'task', subject:'OS', label:'OS Session', state:'queued'},
+  {id:'p7', kind:'task', subject:'CD', label:'Compiler Design — Session 1', state:'queued'},
+  {id:'p8', kind:'task', subject:'CD', label:'Compiler Design — Session 2', state:'queued'},
+  {id:'p9', kind:'task', subject:'WEBSE', label:'Web / SE — Session 1', state:'queued'},
+  {id:'p10', kind:'task', subject:'WEBSE', label:'Web / SE — Session 2', state:'queued'},
+];
+
+let tasks = [];
+let idCounter = 1;
+
+// --- storage helpers, with graceful in-memory fallback ---
+let memoryStore = {};
+async function storeGet(key){
+  try{
+    if(window.storage){
+      const r = await window.storage.get(key);
+      return r ? JSON.parse(r.value) : null;
+    }
+  }catch(e){ /* key not found or storage unavailable */ }
+  return memoryStore[key] ?? null;
+}
+async function storeSet(key, value){
+  try{
+    if(window.storage){
+      await window.storage.set(key, JSON.stringify(value));
+      return;
+    }
+  }catch(e){ /* ignore, fall back below */ }
+  memoryStore[key] = value;
+}
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+async function init(){
+  const savedTemplate = await storeGet('sched:template');
+  const savedDate = await storeGet('sched:date');
+  const today = todayStr();
+
+  if(savedTemplate){
+    tasks = savedTemplate;
+  } else {
+    tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+  }
+
+  if(savedDate !== today){
+    // new day: requeue every task, keep the template
+    tasks = tasks.map(t => t.kind === 'task' ? {...t, state:'queued'} : t);
+    await storeSet('sched:date', today);
+    await storeSet('sched:template', tasks);
+  }
+
+  const d = new Date();
+  document.getElementById('dateline').textContent = d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
+  const hour = d.getHours();
+  const greetWord = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('greeting').textContent = greetWord + ', Sita Ram.';
+
+  render();
+}
+
+async function persist(){
+  await storeSet('sched:template', tasks);
+}
+
+function cycleState(id){
+  const t = tasks.find(x => x.id === id);
+  if(!t || t.kind !== 'task') return;
+  if(t.state === 'queued'){
+    tasks.forEach(x => { if(x.kind==='task' && x.state==='running') x.state = 'queued'; });
+    t.state = 'running';
+  } else if(t.state === 'running'){
+    t.state = 'done';
+  } else {
+    t.state = 'queued';
+  }
+  persist();
+  render();
+}
+
+function removeTask(id){
+  tasks = tasks.filter(t => t.id !== id);
+  persist();
+  render();
+}
+
+function addTask(){
+  const subjectInput = document.getElementById('newSubject');
+  const labelInput = document.getElementById('newLabel');
+  const subject = subjectInput.value.trim().toUpperCase() || 'OTHER';
+  const label = labelInput.value.trim();
+  if(!label) return;
+  tasks.push({id:'custom'+(idCounter++)+Date.now(), kind:'task', subject, label, state:'queued'});
+  labelInput.value = '';
+  subjectInput.value = '';
+  persist();
+  render();
+}
+
+function requeueAll(){
+  tasks = tasks.map(t => t.kind === 'task' ? {...t, state:'queued'} : t);
+  persist();
+  render();
+}
+
+function render(){
+  const realTasks = tasks.filter(t => t.kind === 'task');
+  const doneCount = realTasks.filter(t => t.state === 'done').length;
+  const runningTask = realTasks.find(t => t.state === 'running');
+
+  document.getElementById('statDone').textContent = `${doneCount}/${realTasks.length}`;
+  document.getElementById('statUtil').textContent = realTasks.length ? Math.round((doneCount/realTasks.length)*100) + '%' : '0%';
+  document.getElementById('statRunning').textContent = runningTask ? runningTask.label : 'idle';
+
+  // gantt
+  const gantt = document.getElementById('gantt');
+  gantt.innerHTML = '';
+  tasks.forEach((t, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    const flexBasis = t.kind === 'io' ? 0.6 : 1;
+    seg.style.flex = flexBasis;
+    if(t.kind === 'io'){
+      seg.classList.add('io');
+      seg.style.background = 'repeating-linear-gradient(45deg, var(--io), var(--io) 5px, #4a5062 5px, #4a5062 10px)';
+      seg.innerHTML = `<span class="pid">IO</span>`;
+    } else {
+      let bg = colorFor(t.subject);
+      if(t.state === 'queued'){
+        seg.style.background = 'transparent';
+        seg.style.border = '1px dashed ' + bg.replace('var(','').replace(')','');
+        seg.style.filter = 'saturate(0.6) opacity(0.6)';
+      } else {
+        seg.style.background = bg;
+      }
+      if(t.state === 'running') seg.classList.add('running');
+      const num = realTasks.indexOf(t) + 1;
+      seg.innerHTML = `<span class="pid" style="color:${t.state==='queued' ? 'var(--muted)' : textColorFor(t.subject)}">P${num}</span>`;
+      seg.title = t.label;
+      seg.onclick = () => cycleState(t.id);
+    }
+    gantt.appendChild(seg);
+  });
+
+  // task list
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+  let pidCounter = 0;
+  tasks.forEach(t => {
+    const row = document.createElement('div');
+    if(t.kind === 'io'){
+      row.className = 'task io';
+      row.innerHTML = `
+        <div class="pidnum">⋯</div>
+        <div class="info"><div class="name">${t.label}</div><div class="tag">I/O wait</div></div>
+      `;
+    } else {
+      pidCounter++;
+      row.className = 'task' + (t.state === 'done' ? ' done' : '');
+      row.style.borderLeftColor = colorFor(t.subject);
+      const badgeClass = t.state === 'queued' ? 'state-queued' : t.state === 'running' ? 'state-running' : 'state-done';
+      const badgeStyle = t.state === 'running' ? `background:${colorFor(t.subject)}` : '';
+      row.innerHTML = `
+        <div class="pidnum">P${pidCounter}</div>
+        <div class="info"><div class="name">${t.label}</div><div class="tag">${t.subject}</div></div>
+        <div class="state-badge ${badgeClass}" style="${badgeStyle}">${t.state}</div>
+        <button class="remove-x" title="remove">✕</button>
+      `;
+      row.querySelector('.state-badge').parentElement; // no-op, keep structure
+      row.addEventListener('click', (e) => {
+        if(e.target.classList.contains('remove-x')) return;
+        cycleState(t.id);
+      });
+      row.querySelector('.remove-x').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeTask(t.id);
+      });
+    }
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('addBtn').addEventListener('click', addTask);
+document.getElementById('newLabel').addEventListener('keydown', (e) => { if(e.key==='Enter') addTask(); });
+document.getElementById('resetBtn').addEventListener('click', requeueAll);
+
+init();
+</script>
+</body>
+</html>
