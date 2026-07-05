@@ -360,6 +360,13 @@
     <h1 id="greeting">Loading scheduler…</h1>
     <div class="sub" id="dateline"></div>
 
+    <!-- Sync status UI -->
+    <div style="font-size: 11px; font-family: 'JetBrains Mono', monospace; margin-bottom: 22px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 10px;">
+      <span id="syncStatus">Syncing...</span>
+      <button class="reset-btn" id="changeUserBtn" style="padding: 2px 6px;">Switch User</button>
+    </div>
+
+
     <div class="stats">
       <div class="stat"><div class="num" id="statDone">0/0</div><div class="lbl">Bursts complete</div></div>
       <div class="stat"><div class="num" id="statUtil">0%</div><div class="lbl">CPU utilization</div></div>
@@ -620,25 +627,70 @@ function playChime(){
   }catch(e){ /* audio not available, ignore */ }
 }
 
-// --- storage helpers, with graceful in-memory fallback ---
-let memoryStore = {};
-async function storeGet(key){
-  try{
-    if(window.storage){
-      const r = await window.storage.get(key);
-      return r ? JSON.parse(r.value) : null;
-    }
-  }catch(e){ /* key not found or storage unavailable */ }
-  return memoryStore[key] ?? null;
+// --- storage helpers, with database sync & localStorage fallback ---
+let username = '';
+let pollIntervalId = null;
+
+function updateSyncStatus(msg) {
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = `User: ${username} (${msg})`;
 }
-async function storeSet(key, value){
-  try{
-    if(window.storage){
-      await window.storage.set(key, JSON.stringify(value));
-      return;
+
+async function storeGet(key) {
+  try {
+    const res = await fetch(`${BACKEND_URL}/tasks/${username}`);
+    const data = await res.json();
+    if (data.tasks) return data.tasks;
+  } catch (e) {
+    console.warn('Failed to load tasks from server', e);
+  }
+  // fallback to localStorage
+  try {
+    const local = localStorage.getItem('sched:tasks');
+    return local ? JSON.parse(local) : null;
+  } catch (err) {}
+  return null;
+}
+
+async function storeSet(key, value) {
+  // save to local cache
+  try {
+    localStorage.setItem('sched:tasks', JSON.stringify(value));
+  } catch (e) {}
+
+  // send to server
+  try {
+    updateSyncStatus('Saving...');
+    const res = await fetch(`${BACKEND_URL}/tasks/${username}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tasks: value })
+    });
+    const data = await res.json();
+    updateSyncStatus('Synced');
+    return data.tasks;
+  } catch (e) {
+    console.warn('Failed to save tasks to server', e);
+    updateSyncStatus('Offline (saved locally)');
+  }
+}
+
+function startPolling() {
+  if (pollIntervalId) clearInterval(pollIntervalId);
+  pollIntervalId = setInterval(async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/tasks/${username}`);
+      const data = await res.json();
+      if (data.tasks && JSON.stringify(data.tasks) !== JSON.stringify(tasks)) {
+        tasks = data.tasks;
+        render();
+        syncTimerWithTasks();
+        updateSyncStatus('Synced (updated)');
+      }
+    } catch (e) {
+      console.warn('Poll sync failed', e);
     }
-  }catch(e){ /* ignore, fall back below */ }
-  memoryStore[key] = value;
+  }, 10000);
 }
 
 function todayStr(){
@@ -647,17 +699,40 @@ function todayStr(){
 }
 
 async function init(){
+  username = localStorage.getItem('sched:username');
+  if (!username) {
+    username = prompt('Enter a username to sync your tasks (e.g. sitaram):');
+    if (!username || !username.trim()) username = 'guest-' + Math.random().toString(36).slice(2, 6);
+    username = username.toLowerCase().trim();
+    localStorage.setItem('sched:username', username);
+  }
+  updateSyncStatus('Syncing...');
+
+  // Setup Switch User action
+  const changeBtn = document.getElementById('changeUserBtn');
+  if (changeBtn) {
+    changeBtn.onclick = () => {
+      const newUser = prompt('Enter a new username to sync:', username);
+      if (newUser && newUser.trim()) {
+        localStorage.setItem('sched:username', newUser.toLowerCase().trim());
+        window.location.reload();
+      }
+    };
+  }
+
   const savedTemplate = await storeGet('sched:template');
   const savedDate = await storeGet('sched:date');
   const today = todayStr();
 
-  if(savedTemplate){
+  if (savedTemplate && savedTemplate.length > 0) {
     tasks = savedTemplate;
+    updateSyncStatus('Synced');
   } else {
     tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+    await storeSet('sched:template', tasks);
   }
 
-  if(savedDate !== today){
+  if (savedDate !== today) {
     // new day: requeue every task, keep the template
     tasks = tasks.map(t => t.kind === 'task' ? {...t, state:'queued'} : t);
     await storeSet('sched:date', today);
@@ -668,10 +743,12 @@ async function init(){
   document.getElementById('dateline').textContent = d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' });
   const hour = d.getHours();
   const greetWord = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  document.getElementById('greeting').textContent = greetWord + ', Sita Ram.';
+  document.getElementById('greeting').textContent = greetWord + `, ${username.charAt(0).toUpperCase() + username.slice(1)}.`;
 
   render();
+  startPolling();
 }
+
 
 async function persist(){
   await storeSet('sched:template', tasks);

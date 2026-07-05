@@ -12,6 +12,7 @@
   "dependencies": {
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "mongoose": "^9.7.3",
     "node-cron": "^4.5.0",
     "web-push": "^3.6.7"
   }
